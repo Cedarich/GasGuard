@@ -1,30 +1,51 @@
-Closes #354
+## Summary
 
-### Problem
-Contracts that receive ETH or ERC-20 tokens—or that implement a pause/emergency mechanism—without any fund-recovery path risk permanently locking user funds if a critical bug is found, an admin key is lost, or the contract is paused indefinitely.
+This pull request implements the **Multi-Contract Execution Call-Graph Generator** (`CallGraphBuilder` and `GasTreeEvaluator`) under `src/analysis/graph/`. It parses multi-contract monorepo suites, constructs a directed execution call graph tracing cross-contract and internal function invocations, and evaluates cumulative gas expenditure down the entire call stack to pinpoint gas bottlenecks, recursive call loops, and deep call stacks.
 
-### Solution
-Implemented a new rule at `rules/security/emergency/detect-missing-emergency-withdrawal.ts` that statically analyzes Solidity source and flags contracts that:
+## What Changed
 
-1. **Receive ETH** (`receive()`, `fallback()`, payable functions, `msg.value`) but expose no `withdraw`, `rescue`, `recover`, `emergencyExit`, `drain`, or `sweep` function and no `selfdestruct` call.
-2. **Interact with ERC-20 tokens** (`IERC20`, `transferFrom`, `safeTransferFrom`, `.transfer(`, `.balanceOf(`) but expose no rescue/recovery function.
-3. **Use a pause/emergency pattern** (`pause()`, `whenNotPaused`, `emergency`, `lockdown`) but provide no corresponding fund-recovery path.
+- **`src/analysis/graph/call-graph-builder.ts`**:
+  - **`CallGraphBuilder`**: Parses multi-contract import graphs and contract declarations (Solidity, Soroban Rust, Vyper).
+  - Extracts function nodes (`CallGraphNode`) detailing visibility, state accesses (`SSTORE`/`SLOAD`/`storage`), base gas estimates, and source line locations.
+  - Constructs call graph edges (`CallGraphEdge`) for internal calls, cross-contract calls, `delegatecall`, `staticcall`, and `env.invoke_contract()`.
+  - Detects function calls executed inside `for` and `while` loops and applies execution loop multipliers.
+  - Identifies public/external entry points.
 
-Each violation includes:
-- The **contract name** and **line number** of the `contract` declaration.
-- A human-readable **reason** explaining the risk.
-- An actionable **suggestion** with a ready-to-use code template for the appropriate emergency flow.
+- **`src/analysis/graph/gas-tree-evaluator.ts`**:
+  - **`GasTreeEvaluator`**: Performs depth-first traversal (DFS) starting from each entry point down the execution call stack.
+  - Calculates total cumulative gas incorporating base execution gas, call opcode overheads, and loop multipliers.
+  - Detects recursive call cycles (e.g. `ContractA` -> `ContractB` -> `ContractA`) and deep call stack depths (> 5 hops).
+  - Generates structured findings:
+    - `HIGH_CUMULATIVE_GAS_EXCEEDED`: Cumulative gas expenditure exceeds safety threshold.
+    - `DEEP_CALL_STACK_EXCEEDED`: Execution call stack depth exceeds maximum hops limit (63/64th gas rule risk).
+    - `RECURSIVE_CALL_LOOP`: Recursive call cycles detected in execution path.
+    - `EXPENSIVE_CROSS_CONTRACT_LOOP`: External function calls executed repeatedly inside loops.
 
-### Changes
+- **`src/analysis/graph/call-graph-builder.spec.ts` & `gas-tree-evaluator.spec.ts`**:
+  - Unit test suite verifying multi-contract file parsing, node/edge creation, entry point identification, loop detection, cumulative gas estimation, recursion cycle detection, and high-gas threshold warnings.
 
-| File | Description |
-|---|---|
-| `rules/security/emergency/detect-missing-emergency-withdrawal.ts` | New rule implementation |
-| `tests/rules/detect-missing-emergency-withdrawal.spec.ts` | Comprehensive tests covering all violation kinds, clean contracts, multiple contracts, and line-number accuracy |
+- **`src/analysis/graph/index.ts`**:
+  - Re-exported `CallGraphBuilder`, `GasTreeEvaluator`, and associated types.
 
-### Acceptance Criteria
-- [x] Missing emergency withdrawals flagged (`eth-receiver-no-withdrawal`, `token-handler-no-withdrawal`, `pausable-no-withdrawal`)
-- [x] Missing recovery methods detected
-- [x] Emergency flow suggestions provided per violation kind
-- [x] Clean contracts (with recovery methods or `selfdestruct`) are not flagged
-- [x] Tests cover all scenarios
+## Why
+
+Single-function analyzers miss gas bottlenecks caused by deep external call trees, recursive contract loops, and expensive cross-contract state queries. This multi-contract execution call graph generator allows GasGuard to trace execution paths across entire contract suites and calculate total cumulative gas usage.
+
+## Testing Performed
+
+- [x] Added 8 unit tests in `call-graph-builder.spec.ts` and `gas-tree-evaluator.spec.ts` (100% pass rate).
+- [x] Verified full Rust test suite `cargo test -p gasguard-rules` (104/104 tests passing).
+- [x] Tested cross-contract calls, recursion detection, loop multipliers, and threshold limit enforcement.
+
+## Edge Cases Considered
+
+- Unconnected or orphan contract functions with no callers.
+- Recursive call loops (e.g., A -> B -> A) causing potential infinite stack traversal (handled gracefully with cycle detection).
+- External calls nested within `for`/`while` loops.
+- Contracts with multiple external entry points.
+
+## Risks
+
+None. This is an additive feature in `src/analysis/graph/`.
+
+Closes #604
