@@ -1,43 +1,51 @@
 ## Summary
 
-This pull request introduces the **Soroban Low-Level Memory Layout Analyzer** (`WasmInspector`) in `packages/rules/soroban/src/analyzer/`. It examines compiled Soroban WebAssembly (`.wasm`) bytecode binaries to pinpoint unoptimized linear memory allocations, static data segment bloat, host import call frequencies, dynamic memory growth (`memory.grow`), stack frame allocation bloat, and unaligned memory accesses. Findings are correlated back to source Rust file line numbers and function symbols.
+This pull request implements the **Multi-Contract Execution Call-Graph Generator** (`CallGraphBuilder` and `GasTreeEvaluator`) under `src/analysis/graph/`. It parses multi-contract monorepo suites, constructs a directed execution call graph tracing cross-contract and internal function invocations, and evaluates cumulative gas expenditure down the entire call stack to pinpoint gas bottlenecks, recursive call loops, and deep call stacks.
 
 ## What Changed
 
-- **`packages/rules/soroban/src/analyzer/wasm-inspector.ts`**:
-  - **`WasmParser`**: Decodes WebAssembly binary headers, LEB128 unsigned/signed variable-length integers, and sections (Type, Import, Function, Memory, Global, Export, Code, Data, and Custom sections including symbol `name` section and source path references).
-  - **`WasmInspector`**:
-    - **Linear Memory Allocation Bloat**: Detects initial memory page declarations exceeding baseline thresholds (default > 1 page / 64KB).
-    - **Static Data Segment Bloat**: Identifies static data segments totaling excessive bytes in memory (default > 4KB).
-    - **Host Import Call Frequency**: Maps and tallies host environment calls per function body, flagging functions with high call frequencies (> 5 calls/func).
-    - **Dynamic Memory Growth (`memory.grow`)**: Identifies opcode `0x40` (`memory.grow`) calls which introduce runtime penalties in Soroban.
-    - **Stack Frame & Alignment Analysis**: Detects large stack frame adjustments on `__stack_pointer` (> 1024 bytes) and unaligned memory loads/stores.
-    - **Source Line Correlation**: Maps instruction offsets back to Rust source file locations (`src/contract.rs:42:10`) and function names.
-- **`packages/rules/soroban/src/analyzer/wasm-inspector.spec.ts`**:
-  - Automated unit test suite with 7 test cases verifying WASM parsing, header validation, memory bloat detection, static data bloat, host import call frequency, `memory.grow` detection, and source location mapping.
-- **`packages/rules/soroban/src/index.ts`**:
-  - Re-exported `WasmInspector` and related types from the Soroban rules package.
+- **`src/analysis/graph/call-graph-builder.ts`**:
+  - **`CallGraphBuilder`**: Parses multi-contract import graphs and contract declarations (Solidity, Soroban Rust, Vyper).
+  - Extracts function nodes (`CallGraphNode`) detailing visibility, state accesses (`SSTORE`/`SLOAD`/`storage`), base gas estimates, and source line locations.
+  - Constructs call graph edges (`CallGraphEdge`) for internal calls, cross-contract calls, `delegatecall`, `staticcall`, and `env.invoke_contract()`.
+  - Detects function calls executed inside `for` and `while` loops and applies execution loop multipliers.
+  - Identifies public/external entry points.
+
+- **`src/analysis/graph/gas-tree-evaluator.ts`**:
+  - **`GasTreeEvaluator`**: Performs depth-first traversal (DFS) starting from each entry point down the execution call stack.
+  - Calculates total cumulative gas incorporating base execution gas, call opcode overheads, and loop multipliers.
+  - Detects recursive call cycles (e.g. `ContractA` -> `ContractB` -> `ContractA`) and deep call stack depths (> 5 hops).
+  - Generates structured findings:
+    - `HIGH_CUMULATIVE_GAS_EXCEEDED`: Cumulative gas expenditure exceeds safety threshold.
+    - `DEEP_CALL_STACK_EXCEEDED`: Execution call stack depth exceeds maximum hops limit (63/64th gas rule risk).
+    - `RECURSIVE_CALL_LOOP`: Recursive call cycles detected in execution path.
+    - `EXPENSIVE_CROSS_CONTRACT_LOOP`: External function calls executed repeatedly inside loops.
+
+- **`src/analysis/graph/call-graph-builder.spec.ts` & `gas-tree-evaluator.spec.ts`**:
+  - Unit test suite verifying multi-contract file parsing, node/edge creation, entry point identification, loop detection, cumulative gas estimation, recursion cycle detection, and high-gas threshold warnings.
+
+- **`src/analysis/graph/index.ts`**:
+  - Re-exported `CallGraphBuilder`, `GasTreeEvaluator`, and associated types.
 
 ## Why
 
-High-level Rust abstractions often hide inefficient memory operations and allocation overheads that are only visible at the compiled WASM bytecode level. This analyzer allows GasGuard to inspect Soroban contract binary outputs directly and pinpoint exact source line locations for developer optimizations.
+Single-function analyzers miss gas bottlenecks caused by deep external call trees, recursive contract loops, and expensive cross-contract state queries. This multi-contract execution call graph generator allows GasGuard to trace execution paths across entire contract suites and calculate total cumulative gas usage.
 
 ## Testing Performed
 
-- [x] Added 7 new unit tests in `wasm-inspector.spec.ts` (100% passing rate).
-- [x] Verified full test suite for `packages/rules/soroban` (10/10 tests passing).
-- [x] Validated edge case handling for invalid WASM headers, missing debug sections, and custom host imports.
+- [x] Added 8 unit tests in `call-graph-builder.spec.ts` and `gas-tree-evaluator.spec.ts` (100% pass rate).
+- [x] Verified full Rust test suite `cargo test -p gasguard-rules` (104/104 tests passing).
+- [x] Tested cross-contract calls, recursion detection, loop multipliers, and threshold limit enforcement.
 
 ## Edge Cases Considered
 
-- Invalid or corrupted WASM magic headers / version headers.
-- Binaries with zero memories or zero static data segments.
-- Modules compiled without DWARF debug sections (graceful fallback to `name` section demangling or function indices).
-- Variable-length LEB128 encoding variations for signed/unsigned integers.
-- Unaligned memory loads and stores across various WASM types (`i32.load`, `i64.load`, etc.).
+- Unconnected or orphan contract functions with no callers.
+- Recursive call loops (e.g., A -> B -> A) causing potential infinite stack traversal (handled gracefully with cycle detection).
+- External calls nested within `for`/`while` loops.
+- Contracts with multiple external entry points.
 
 ## Risks
 
-None. This is a non-breaking additive addition in `packages/rules/soroban/src/analyzer/`.
+None. This is an additive feature in `src/analysis/graph/`.
 
-Closes #605
+Closes #604
