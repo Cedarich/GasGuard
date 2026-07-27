@@ -78,7 +78,8 @@
       "^@rpc/(.*)$": "<rootDir>/libs/rpc/$1",
       "^@monitoring/(.*)$": "<rootDir>/libs/monitoring/$1",
       "^@simulation/(.*)$": "<rootDir>/libs/simulation/$1",
-      "^@chains/(.*)$": "<rootDir>/libs/chains/$1"
+      "^@chains/(.*)$": "<rootDir>/libs/chains/$1",
+      "^@gas-evaluator/(.*)$": "<rootDir>/libs/gas-evaluator/src/$1"
     }
   }
 }
