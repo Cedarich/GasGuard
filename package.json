@@ -15,7 +15,8 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./apps/api/test/jest-e2e.json",
     "test:regression": "jest --testPathPattern='tests/regression/security/stellar/regression.spec' --no-coverage --verbose",
-    "bench:gas-comparator": "ts-node tests/benchmarks/gas-comparator.ts tests/benchmarks/fixtures"
+    "bench:gas-comparator": "ts-node tests/benchmarks/gas-comparator.ts tests/benchmarks/fixtures",
+    "test:contracts": "hardhat test"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -35,9 +36,14 @@
     "@nestjs/cli": "^10.0.0",
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/chai": "^4.3.16",
     "@types/glob": "^8.1.0",
     "@types/jest": "^29.5.2",
+    "@types/mocha": "^10.0.6",
     "@types/node": "^20.3.1",
+    "chai": "^4.5.0",
+    "hardhat": "^2.22.5",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.42.0",

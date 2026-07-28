@@ -2,6 +2,12 @@
 node_modules
 /target
 
+# Foundry / Hardhat build output
+/out
+/cache
+/artifacts
+/typechain-types
+
 # Production
 dist
 build
