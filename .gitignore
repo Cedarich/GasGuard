@@ -1,6 +1,7 @@
 # Dependencies
 node_modules
 /target
+gasguard-cli/target
 
 # Foundry / Hardhat build output
 /out
