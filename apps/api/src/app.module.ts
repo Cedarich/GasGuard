@@ -14,6 +14,9 @@ import { RateLimitingModule, RateLimitGuard } from "./rate-limiting";
 import { AuthModule, JwtAuthGuard, RolesGuard } from "./auth";
 import { ExportsModule } from "./exports/exports.module";
 import { ScanModule } from "./modules/scan/scan.module";
+import { GasOracleModule } from './gas-oracle/gas-oracle.module';
+import { ScheduleModule } from '@nestjs/schedule';
+
 
 @Module({
   imports: [
@@ -37,6 +40,8 @@ import { ScanModule } from "./modules/scan/scan.module";
     ExportsModule,
     // Scan module for code analysis
     ScanModule,
+    GasOracleModule,
+    ScheduleModule.forRoot(),
   ],
   controllers: [
     AppController,
