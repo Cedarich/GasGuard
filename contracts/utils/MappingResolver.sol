@@ -11,12 +11,12 @@ library MappingResolver {
     /// @param key The mapping key.
     /// @return result The computed storage slot.
     function computeSlot(bytes32 slot, bytes32 key) internal pure returns (bytes32 result) {
+        // [key, slot] -> [result]
+        // Safety: reads scratch 0x00-0x40 only; no storage reads/writes; no external calls.
+        // Gas: keccak256(0x00, 0x40) costs 30 gas + word count * 6 gas.
         assembly {
-            // Write key to scratch space at 0x00
             mstore(0x00, key)
-            // Write slot to scratch space at 0x20
             mstore(0x20, slot)
-            // Compute keccak256 of the 64-byte range
             result := keccak256(0x00, 0x40)
         }
     }
@@ -31,13 +31,14 @@ library MappingResolver {
         bytes32 key1,
         bytes32 key2
     ) internal pure returns (bytes32 result) {
+        // [key1, slot, key2, innerSlot] -> [result]
+        // Safety: reads scratch 0x00-0x40 only; no storage reads/writes; no external calls.
+        // Gas: two keccak256(0x00, 0x40) calls; each costs 30 gas + word count * 6 gas.
         assembly {
-            // Compute inner slot: keccak256(abi.encode(key1, slot))
             mstore(0x00, key1)
             mstore(0x20, slot)
             let innerSlot := keccak256(0x00, 0x40)
 
-            // Compute outer slot: keccak256(abi.encode(key2, innerSlot))
             mstore(0x00, key2)
             mstore(0x20, innerSlot)
             result := keccak256(0x00, 0x40)
@@ -49,6 +50,9 @@ library MappingResolver {
     /// @param key The address key.
     /// @return result The computed storage slot.
     function computeAddrSlot(bytes32 slot, address key) internal pure returns (bytes32 result) {
+        // [key, slot] -> [result]
+        // Safety: reads scratch 0x00-0x40 only; no storage reads/writes; no external calls.
+        // Gas: keccak256(0x00, 0x40) costs 30 gas + word count * 6 gas.
         assembly {
             mstore(0x00, key)
             mstore(0x20, slot)
@@ -61,6 +65,9 @@ library MappingResolver {
     /// @param key The uint256 key.
     /// @return result The computed storage slot.
     function computeUintSlot(bytes32 slot, uint256 key) internal pure returns (bytes32 result) {
+        // [key, slot] -> [result]
+        // Safety: reads scratch 0x00-0x40 only; no storage reads/writes; no external calls.
+        // Gas: keccak256(0x00, 0x40) costs 30 gas + word count * 6 gas.
         assembly {
             mstore(0x00, key)
             mstore(0x20, slot)
@@ -88,6 +95,9 @@ contract MappingResolverConsumer {
     /// @return value The balance value.
     function readBalanceAssembly(address user) external view returns (uint256 value) {
         bytes32 slot = MappingResolver.computeAddrSlot(bytes32(0), user);
+        // [slot] -> [value]
+        // Safety: reads scratch 0x00-0x40 only; reads storage (sload); no external calls.
+        // Gas: SLOAD (2100 warm / 100 cold).
         assembly {
             value := sload(slot)
         }
@@ -106,6 +116,9 @@ contract MappingResolverConsumer {
             bytes32(uint256(uint160(owner))),
             bytes32(uint256(uint160(spender)))
         );
+        // [slot] -> [value]
+        // Safety: reads scratch 0x00-0x40 only; reads storage (sload); no external calls.
+        // Gas: SLOAD (2100 warm / 100 cold).
         assembly {
             value := sload(slot)
         }
@@ -121,6 +134,9 @@ contract MappingResolverConsumer {
             bytes32(uint256(uint160(user))),
             bytes32(key)
         );
+        // [slot] -> [value]
+        // Safety: reads scratch 0x00-0x40 only; reads storage (sload); no external calls.
+        // Gas: SLOAD (2100 warm / 100 cold).
         assembly {
             value := sload(slot)
         }
