@@ -1,7 +1,8 @@
 import { HardhatUserConfig } from "hardhat/config";
-import "@nomicfoundation/hardhat-toolbox";
+import hardhatToolboxMochaEthersPlugin from "@nomicfoundation/hardhat-toolbox-mocha-ethers";
 
 const config: HardhatUserConfig = {
+  plugins: [hardhatToolboxMochaEthersPlugin],
   solidity: {
     version: "0.8.20",
     settings: {
@@ -13,6 +14,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
+      type: "edr-simulated",
       chainId: 1337,
       mining: {
         auto: true,
@@ -24,6 +26,7 @@ const config: HardhatUserConfig = {
       },
     },
     localhost: {
+      type: "http",
       url: "http://127.0.0.1:8545",
       chainId: 1337,
     },
