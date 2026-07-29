@@ -11,6 +11,7 @@ pub mod vyper;
 // Explicitly export core types to avoid ambiguity
 pub use optimization::arrays::detect_dynamic_array_deletions;
 pub use optimization::deployment::{estimate_bytecode_size, ExcessiveContractSizeRule};
+pub use optimization::gas::YulCandidatesRule;
 pub use optimization::storage::detect_mapping_iteration;
 pub use optimization::storage::{
     detect_packing_opportunities, find_consecutive_packable_groups, get_type_size,
